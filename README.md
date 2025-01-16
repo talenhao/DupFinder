@@ -37,12 +37,13 @@
 | `--action` | 可选，默认为 `move` | 对重复文件执行的操作，可选值为 `delete` 或 `move` |
 | `--priority-order` | 可选 | 自定义优先级顺序，格式为 `size path modified_time` |
 | `--move-to-dir` | 可选 | 移动文件的目标目录 |
+| `--try-run, -n` | 可选 | 尝试运行模式：仅打印操作，不实际执行 |
 
    ```
-   $ python dup_finder.py --help 
+   $ python dup_finder.py mock -h 
    usage: dup_finder.py [-h] [--keyword KEYWORD] [--action {delete,move}]
                         [--priority-order PRIORITY_ORDER [PRIORITY_ORDER ...]]
-                        [--move-to-dir MOVE_TO_DIR]
+                        [--move-to-dir MOVE_TO_DIR] [--try-run]
                         directories [directories ...]
 
    Find and process duplicate files.
@@ -60,8 +61,11 @@
    --move-to-dir MOVE_TO_DIR
                            Directory to move files to (if not specified, rename
                            files with .dup_finder suffix)
+   --try-run, -n         Try run mode: only print actions without executing
+                           them
 
    ```
+
 ### 示例
 1. 查找并移动重复文件到指定目录：
    ```bash
@@ -76,6 +80,16 @@
 3. 使用自定义优先级顺序查找并处理重复文件：
    ```bash
    python dup_finder.py /path/to/dir1 --priority-order size modified_time path --action move
+   ```
+
+4. 尝试运行模式，仅打印操作，不实际执行：
+   ```bash
+   python dup_finder.py /path/to/dir1 --try-run
+   ```
+
+5. 使用简写形式尝试运行模式：
+   ```bash
+   python dup_finder.py /path/to/dir1 -n
    ```
 
 ## 贡献
