@@ -38,6 +38,30 @@
 | `--priority-order` | 可选 | 自定义优先级顺序，格式为 `size path modified_time` |
 | `--move-to-dir` | 可选 | 移动文件的目标目录 |
 
+   ```
+   $ python dup_finder.py --help 
+   usage: dup_finder.py [-h] [--keyword KEYWORD] [--action {delete,move}]
+                        [--priority-order PRIORITY_ORDER [PRIORITY_ORDER ...]]
+                        [--move-to-dir MOVE_TO_DIR]
+                        directories [directories ...]
+
+   Find and process duplicate files.
+
+   positional arguments:
+   directories           Directories to search for duplicate files
+
+   optional arguments:
+   -h, --help            show this help message and exit
+   --keyword KEYWORD     Keyword to retain files
+   --action {delete,move}
+                           Action to process files (default: move)
+   --priority-order PRIORITY_ORDER [PRIORITY_ORDER ...]
+                           Custom priority order: size, path, modified_time
+   --move-to-dir MOVE_TO_DIR
+                           Directory to move files to (if not specified, rename
+                           files with .dup_finder suffix)
+
+   ```
 ### 示例
 1. 查找并移动重复文件到指定目录：
    ```bash
