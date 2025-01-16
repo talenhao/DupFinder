@@ -80,7 +80,7 @@ def assign_priorities(file_dict, keyword, priority_order=None):
                 file_info['priority'] = priority_counter
                 priority_counter += 1
 
-def retain_files(file_dict, action, move_to_dir=None):
+def retain_files(file_dict, action, move_to_dir=None, try_run=False):
     """Retain files based on the priority and process the rest."""
     files_to_process = []
     files_to_retain = []
@@ -96,42 +96,53 @@ def retain_files(file_dict, action, move_to_dir=None):
             retained_files.append(best_file)
             files_to_process.extend([file for file in non_zero_priority_files if file != best_file])
         files_to_retain.extend(retained_files)
-    process_files(files_to_process, action, move_to_dir)
+    process_files(files_to_process, action, move_to_dir, try_run)
 
-def process_files(files, action, move_to_dir=None):
-    """Process the files based on the action."""
+def process_files(files, action, move_to_dir=None, try_run=False):
     if action == 'delete':
         for file in files:
-            try:
-                os.remove(file['path'])
-                print(f"Deleted: {file['path']}")
-            except Exception as e:
-                print(f"Error deleting {file['path']}: {e}")
+            if try_run:
+                print(f"Would delete: {file['path']}")
+            else:
+                try:
+                    os.remove(file['path'])
+                    print(f"Deleted: {file['path']}")
+                except Exception as e:
+                    print(f"Error deleting {file['path']}: {e}")
     elif action == 'move':
         if move_to_dir:
             if not os.path.exists(move_to_dir):
                 os.makedirs(move_to_dir)
             for file in files:
-                try:
+                if try_run:
                     file_name = file['path'].replace('/', '___')
                     new_path = os.path.join(move_to_dir, file_name)
-                    shutil.move(file['path'], new_path)
-                    print(f"Moved: {file['path']} to {new_path}")
-                except Exception as e:
-                    print(f"Error moving {file['path']} to {move_to_dir}: {e}")
+                    print(f"Would move: {file['path']} to {new_path}")
+                else:
+                    try:
+                        file_name = file['path'].replace('/', '___')
+                        new_path = os.path.join(move_to_dir, file_name)
+                        shutil.move(file['path'], new_path)
+                        print(f"Moved: {file['path']} to {new_path}")
+                    except Exception as e:
+                        print(f"Error moving {file['path']} to {move_to_dir}: {e}")
         else:
             for file in files:
-                try:
+                if try_run:
                     new_path = file['path'] + '.dup_finder'
-                    shutil.move(file['path'], new_path)
-                    print(f"Renamed: {file['path']} to {new_path}")
-                except Exception as e:
-                    print(f"Error renaming {file['path']} to {new_path}: {e}")
+                    print(f"Would rename: {file['path']} to {new_path}")
+                else:
+                    try:
+                        new_path = file['path'] + '.dup_finder'
+                        shutil.move(file['path'], new_path)
+                        print(f"Renamed: {file['path']} to {new_path}")
+                    except Exception as e:
+                        print(f"Error renaming {file['path']} to {new_path}: {e}")
 
-def main(directories, keyword, action, priority_order=None, move_to_dir=None):
+def main(directories, keyword, action, priority_order=None, move_to_dir=None, try_run=False):
     file_dict = find_duplicates(directories)
     assign_priorities(file_dict, keyword, priority_order)
-    retain_files(file_dict, action, move_to_dir)
+    retain_files(file_dict, action, move_to_dir, try_run)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Find and process duplicate files.")
@@ -140,7 +151,8 @@ if __name__ == "__main__":
     parser.add_argument("--action", choices=['delete', 'move'], required=False, default='move', help="Action to process files (default: move)")
     parser.add_argument("--priority-order", nargs='+', required=False, help="Custom priority order: size, path, modified_time")
     parser.add_argument("--move-to-dir", required=False, help="Directory to move files to (if not specified, rename files with .dup_finder suffix)")
+    parser.add_argument("--try-run", "-n", action='store_true', required=False, help="Try run mode: only print actions without executing them")
 
     args = parser.parse_args()
 
-    main(args.directories, args.keyword, args.action, args.priority_order, args.move_to_dir)
+    main(args.directories, args.keyword, args.action, args.priority_order, args.move_to_dir, args.try_run)
