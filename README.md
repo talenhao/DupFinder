@@ -4,8 +4,8 @@
 `dup_finder` 是一个用于查找并处理重复文件的 Python 工具。它可以通过计算文件的哈希值来识别重复文件，并根据指定的优先级规则保留某些文件，同时对其他文件执行删除或移动操作。
 
 ## 功能特性
-- **查找重复文件**：通过文件大小和哈希值（SHA-256）唯一标识文件，查找给定目录中的重复文件。
-- **优先级排序**：根据文件路径、大小、修改时间等条件为文件分配优先级，确保重要文件被保留。
+- **查找重复文件**：通过文件大小和哈希值（SHA-256）唯一标识文件，查找给定目录中的重复文件。对于哈希值相同但文件大小不同的文件，全部保留并打印出来，进行手动甄别。
+- **优先级排序**：根据文件路径、修改时间等条件为文件分配优先级，确保重要文件被保留。
 - **关键字过滤**：支持通过关键字筛选需要保留的文件。
 - **灵活处理**：可以选择删除或移动重复文件，支持自定义移动目标目录。
 - **命令行工具**：提供简单易用的命令行接口，方便集成到自动化脚本中。
@@ -35,7 +35,7 @@
 | `directories` | 必选 | 需要查找重复文件的目录列表 |
 | `--keyword` | 可选 | 关键字，包含该关键字的文件将被优先保留 |
 | `--action` | 可选，默认为 `move` | 对重复文件执行的操作，可选值为 `delete` 或 `move` |
-| `--priority-order` | 可选 | 自定义优先级顺序，可选内容为 `modified_time path_level`。modified_time优先是考虑最新修改过的文件可能是最有保留价值的文件， path_level是层数，层数多的文件可能做了更细的整理。实际结合自己文件的情况，做对应的修改。 |
+| `--priority-order` | 可选 | 自定义优先级顺序，可选内容为 `modified_time path`。modified_time优先是考虑最新修改过的文件可能是最有保留价值的文件， path是文件完整路径，层数多的文件可能做了更细的整理。实际结合自己文件的情况，做对应的修改。 |
 | `--move-to-dir` | 可选 | 移动文件的目标目录 |
 | `--try-run, -n` | 可选 | 尝试运行模式：仅打印操作，不实际执行 |
 
@@ -57,13 +57,12 @@
    --action {delete,move}
                            Action to process files (default: move)
    --priority-order PRIORITY_ORDER [PRIORITY_ORDER ...]
-                           Custom priority order: modified_time, path_level, 
+                           Custom priority order: modified_time, path
    --move-to-dir MOVE_TO_DIR
                            Directory to move files to (if not specified, rename
                            files with .dup_finder suffix)
    --try-run, -n         Try run mode: only print actions without executing
                            them
-
    ```
 
 
@@ -80,7 +79,7 @@
 
 3. 使用自定义优先级顺序查找并处理重复文件：
    ```bash
-   python dup_finder.py /path/to/dir1 --priority-order modified_time path_level --action move
+   python dup_finder.py /path/to/dir1 --priority-order modified_time path --action move
    ```
 
 4. 尝试运行模式，仅打印操作，不实际执行：
