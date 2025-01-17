@@ -14,9 +14,8 @@ def get_file_hash(file_path, hash_algo=hashlib.sha256):
 
 def generate_file_identifier(file_path):
     """Generate a unique identifier for a file."""
-    file_size = os.path.getsize(file_path)
     file_hash = get_file_hash(file_path, hashlib.sha256)
-    return f"{file_size}_{file_hash}"
+    return f"{file_hash}"
 
 def find_duplicates(directories):
     """Find duplicate files in the given directories."""
