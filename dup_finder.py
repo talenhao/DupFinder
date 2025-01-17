@@ -1,8 +1,15 @@
 import os
+import sys
+import json
+import shutil
 import hashlib
 import argparse
-import shutil
-import json
+import subprocess
+from logger import configure_logger
+
+
+logger = configure_logger("DupFinder")
+
 
 def get_file_hash(file_path, hash_algo=hashlib.sha256):
     """Calculate the hash of a file."""
@@ -32,6 +39,7 @@ def find_duplicates(directories):
                     'type': os.path.splitext(file_path)[1],
                     'modified_time': os.path.getmtime(file_path)
                 }
+                logger.info("Process File ID: %s, File Info: %s", file_id, file_info)
 
                 if file_id in file_dict:
                     file_dict[file_id].append(file_info)
@@ -56,9 +64,9 @@ def assign_priorities(file_dict, keyword, priority_order=None):
             for file_info in files:
                 file_info['priority'] = 0
             # 打印文件大小不一致的 file_id 及文件列表
-            print(f"File ID with inconsistent sizes: {file_id}")
+            logger.error("File ID with inconsistent sizes: %s", file_id)
             for file_info in files:
-                print(f"  Path: {file_info['path']}, Size: {file_info['size']}")
+                logger.warning(f"  Path: {file_info['path']}, Size: {file_info['size']}")
             continue
 
         priority_counter = 1  # Start from 1 for non-keyword files
@@ -112,13 +120,13 @@ def process_files(files, action, move_to_dir=None, try_run=False):
     if action == 'delete':
         for file in files:
             if try_run:
-                print(f"Would delete: {file['path']}")
+                logger.warning(f"Would delete: {file['path']}")
             else:
                 try:
                     os.remove(file['path'])
-                    print(f"Deleted: {file['path']}")
+                    logger.warning(f"Deleted: {file['path']}")
                 except Exception as e:
-                    print(f"Error deleting {file['path']}: {e}")
+                    logger.error(f"Error deleting {file['path']}: {e}")
     elif action == 'move':
         if move_to_dir:
             if not os.path.exists(move_to_dir):
@@ -127,27 +135,27 @@ def process_files(files, action, move_to_dir=None, try_run=False):
                 if try_run:
                     file_name = file['path'].replace('/', '___')
                     new_path = os.path.join(move_to_dir, file_name)
-                    print(f"Would move: {file['path']} to {new_path}")
+                    logger.warning(f"Would move: {file['path']} to {new_path}")
                 else:
                     try:
                         file_name = file['path'].replace('/', '___')
                         new_path = os.path.join(move_to_dir, file_name)
                         shutil.move(file['path'], new_path)
-                        print(f"Moved: {file['path']} to {new_path}")
+                        logger.warning(f"Moved: {file['path']} to {new_path}")
                     except Exception as e:
-                        print(f"Error moving {file['path']} to {move_to_dir}: {e}")
+                        logger.error(f"Error moving {file['path']} to {move_to_dir}: {e}")
         else:
             for file in files:
                 if try_run:
                     new_path = file['path'] + '.dup_finder'
-                    print(f"Would rename: {file['path']} to {new_path}")
+                    logger.warning(f"Would rename: {file['path']} to {new_path}")
                 else:
                     try:
                         new_path = file['path'] + '.dup_finder'
                         shutil.move(file['path'], new_path)
-                        print(f"Renamed: {file['path']} to {new_path}")
+                        logger.warning(f"Renamed: {file['path']} to {new_path}")
                     except Exception as e:
-                        print(f"Error renaming {file['path']} to {new_path}: {e}")
+                        logger.error(f"Error renaming {file['path']} to {new_path}: {e}")
 
 def main(directories, keyword, action, priority_order=None, move_to_dir=None, try_run=False):
     file_dict = find_duplicates(directories)
@@ -168,5 +176,7 @@ if __name__ == "__main__":
     parser.add_argument("--try-run", "-n", action='store_true', required=False, help="Try run mode: only print actions without executing them")
 
     args = parser.parse_args()
-
+    # 使用 subprocess.list2cmdline 重建命令行字符串
+    command_line = subprocess.list2cmdline(sys.argv)
+    logger.info("Full command line: %s", command_line)
     main(args.directories, args.keyword, args.action, args.priority_order, args.move_to_dir, args.try_run)
