@@ -2,7 +2,7 @@ import os
 import hashlib
 import argparse
 import shutil
-import time
+import json
 
 def get_file_hash(file_path, hash_algo=hashlib.sha256):
     """Calculate the hash of a file."""
@@ -28,7 +28,7 @@ def find_duplicates(directories):
                 file_id = generate_file_identifier(file_path)
                 file_info = {
                     'path': file_path,
-                    'size': os.path.getsize(file_path),
+                    'size': os.path.getsize(file_path),  # File size in bytes
                     'type': os.path.splitext(file_path)[1],
                     'modified_time': os.path.getmtime(file_path)
                 }
@@ -152,6 +152,10 @@ def process_files(files, action, move_to_dir=None, try_run=False):
 def main(directories, keyword, action, priority_order=None, move_to_dir=None, try_run=False):
     file_dict = find_duplicates(directories)
     assign_priorities(file_dict, keyword, priority_order)
+
+    # 将 file_dict 转换为 JSON 并保存到当前目录下的 'file_dict.json' 文件
+    with open('file_dict.json', 'w', encoding='utf-8') as json_file:
+        json.dump(file_dict, json_file, ensure_ascii=False, indent=4)
     retain_files(file_dict, action, move_to_dir, try_run)
 
 if __name__ == "__main__":
