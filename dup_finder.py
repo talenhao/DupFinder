@@ -46,9 +46,8 @@ def find_duplicates(directories):
 def assign_priorities(file_dict, keyword, priority_order=None):
     """Assign priorities to files based on the given criteria."""
     if priority_order is None:
-        # Default priority order: size, directory depth, modified time
-        priority_order = ['size', 'path', 'modified_time']
-
+        # Default priority order
+        priority_order = ['modified_time', 'path_level']
 
     for file_id, files in file_dict.items():
         priority_counter = 1  # Start from 1 for non-keyword files
@@ -149,7 +148,7 @@ if __name__ == "__main__":
     parser.add_argument("directories", nargs='+', help="Directories to search for duplicate files")
     parser.add_argument("--keyword", required=False, help="Keyword to retain files")
     parser.add_argument("--action", choices=['delete', 'move'], required=False, default='move', help="Action to process files (default: move)")
-    parser.add_argument("--priority-order", nargs='+', required=False, help="Custom priority order: size, path, modified_time")
+    parser.add_argument("--priority-order", nargs='+', required=False, help="Custom priority order: modified_time, path_level")
     parser.add_argument("--move-to-dir", required=False, help="Directory to move files to (if not specified, rename files with .dup_finder suffix)")
     parser.add_argument("--try-run", "-n", action='store_true', required=False, help="Try run mode: only print actions without executing them")
 
