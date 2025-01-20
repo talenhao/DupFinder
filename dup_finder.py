@@ -51,11 +51,24 @@ def find_duplicates(directories):
 
     return file_dict
 
-def assign_priorities(file_dict, keyword, priority_order=None):
+def parse_exclude_file(exclude_file):
+    """Parse the exclude file and return a list of keywords."""
+    try:
+        with open(exclude_file, 'r') as file:
+            return [line.strip() for line in file if line.strip()]
+    except Exception as e:
+        logger.error(f"Error reading exclude file {exclude_file}: {e}")
+        return []
+
+def assign_priorities(file_dict, exclude_keywords, exclude_file, priority_order=None):
     """Assign priorities to files based on the given criteria."""
     if priority_order is None:
         # Default priority order
         priority_order = ['modified_time', 'path']
+
+    # Read exclude keywords from file if provided
+    if exclude_file:
+        exclude_keywords.extend(parse_exclude_file(exclude_file))
 
     for file_id, files in file_dict.items():
         # 检查同一 file_id 下的文件大小是否一致
@@ -70,26 +83,26 @@ def assign_priorities(file_dict, keyword, priority_order=None):
                 logger.warning(f"  Path: {file_info['path']}, Size: {file_info['size']}")
             continue
 
-        priority_counter = 1  # Start from 1 for non-keyword files
-        if keyword:
-            keyword_files = [file for file in files if keyword in file['path']]
-            non_keyword_files = [file for file in files if keyword not in file['path']]
+        priority_counter = 1  # Start from 1 for non-excluded files
+        if exclude_keywords:
+            excluded_files = [file for file in files if any(keyword in file['path'] for keyword in exclude_keywords)]
+            non_excluded_files = [file for file in files if all(keyword not in file['path'] for keyword in exclude_keywords)]
 
-            # Assign priority 0 to files containing the keyword
-            for file_info in keyword_files:
+            # Assign priority 0 to files containing any of the exclude keywords
+            for file_info in excluded_files:
                 file_info['priority'] = 0
 
-            # Sort non-keyword files by the custom priority order
-            non_keyword_files.sort(
+            # Sort non-excluded files by the custom priority order
+            non_excluded_files.sort(
                 key=lambda x: tuple(-x[order] if order != 'path' else -x[order].count(os.sep) for order in priority_order)
             )
 
-            # Assign priorities to non-keyword files
-            for file_info in non_keyword_files:
+            # Assign priorities to non-excluded files
+            for file_info in non_excluded_files:
                 file_info['priority'] = priority_counter
                 priority_counter += 1
         else:
-            # If keyword is empty, sort all files by the custom priority order
+            # If no exclude keywords, sort all files by the custom priority order
             files.sort(
                 key=lambda x: tuple(-x[order] if order != 'path' else -x[order].count(os.sep) for order in priority_order)
             )
@@ -158,21 +171,46 @@ def process_files(files, action, move_to_dir=None, try_run=False):
                     except Exception as e:
                         logger.error(f"Error renaming {file['path']} to {new_path}: {e}")
 
-def main(directories, keyword, action, priority_order=None, move_to_dir=None, try_run=False):
-    file_dict = find_duplicates(directories)
-    assign_priorities(file_dict, keyword, priority_order)
+def main(directories, exclude_keywords, exclude_file, action, priority_order=None, move_to_dir=None, try_run=False):
+    # 检查上次运行的结果文件是否存在且目录相同
+    cache_file = 'file_dict_cache.json'
+    if os.path.exists(cache_file):
+        with open(cache_file, 'r', encoding='utf-8') as f:
+            cached_data = json.load(f)
+        if cached_data['directories'] == directories:
+            user_input = input("上次运行的结果可用，是否使用上次的结果？(Y/N): ").strip().upper()
+            if user_input == 'Y':
+                file_dict = cached_data['file_dict']
+                logger.info("使用上次运行的结果")
+            else:
+                file_dict = find_duplicates(directories)
+                logger.info("重新计算 file_dict")
+        else:
+            file_dict = find_duplicates(directories)
+            logger.info("目录不同，重新计算 file_dict")
+    else:
+        file_dict = find_duplicates(directories)
+        logger.info("未找到缓存文件，重新计算 file_dict")
+
+    assign_priorities(file_dict, exclude_keywords, exclude_file, priority_order)
 
     # 将 file_dict 转换为 JSON 并保存到当前目录下的 'file_dict.json' 文件
     current_time = datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S')
     file_name = f'file_dict_{current_time}.json'
     with open(file_name, 'w', encoding='utf-8') as json_file:
         json.dump(file_dict, json_file, ensure_ascii=False, indent=4)
+
+    # 序列化 file_dict 和 directories 到缓存文件
+    with open(cache_file, 'w', encoding='utf-8') as f:
+        json.dump({'file_dict': file_dict, 'directories': directories}, f, ensure_ascii=False, indent=4)
+
     retain_files(file_dict, action, move_to_dir, try_run)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Find and process duplicate files.")
     parser.add_argument("directories", nargs='+', help="Directories to search for duplicate files")
-    parser.add_argument("--keyword", required=False, help="Keyword to retain files")
+    parser.add_argument("--exclude", nargs='+', required=False, help="Exclude keywords, ")
+    parser.add_argument("--exclude-file", required=False, help="File containing exclude keywords, one per line")
     parser.add_argument("--action", choices=['delete', 'move'], required=False, default='move', help="Action to process files (default: move)")
     parser.add_argument("--priority-order", nargs='+', required=False, help="Custom priority order: default is modified_time, path")
     parser.add_argument("--move-to-dir", required=False, help="Directory to move files to (if not specified, rename files with .dup_finder suffix)")
@@ -182,4 +220,4 @@ if __name__ == "__main__":
     # 使用 subprocess.list2cmdline 重建命令行字符串
     command_line = subprocess.list2cmdline(sys.argv)
     logger.info("Full command line: %s", command_line)
-    main(args.directories, args.keyword, args.action, args.priority_order, args.move_to_dir, args.try_run)
+    main(args.directories, args.exclude if args.exclude else [], args.exclude_file, args.action, args.priority_order, args.move_to_dir, args.try_run)
