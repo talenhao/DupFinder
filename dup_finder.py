@@ -5,6 +5,7 @@ import shutil
 import hashlib
 import argparse
 import subprocess
+import datetime
 from logger import configure_logger
 
 
@@ -162,7 +163,9 @@ def main(directories, keyword, action, priority_order=None, move_to_dir=None, tr
     assign_priorities(file_dict, keyword, priority_order)
 
     # 将 file_dict 转换为 JSON 并保存到当前目录下的 'file_dict.json' 文件
-    with open('file_dict.json', 'w', encoding='utf-8') as json_file:
+    current_time = datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S')
+    file_name = f'file_dict_{current_time}.json'
+    with open(file_name, 'w', encoding='utf-8') as json_file:
         json.dump(file_dict, json_file, ensure_ascii=False, indent=4)
     retain_files(file_dict, action, move_to_dir, try_run)
 
