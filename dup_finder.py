@@ -79,6 +79,7 @@ def find_duplicates(directories, cache_file='file_cache.json', batch_size=10):
         cache_updates = []
 
         for directory in directories:
+            logger.info("Processing directory: %s", directory)
             for root, _, files in os.walk(directory):
                 for file in files:
                     file_path = os.path.join(root, file)
@@ -92,7 +93,7 @@ def find_duplicates(directories, cache_file='file_cache.json', batch_size=10):
                         'type': os.path.splitext(file_path)[1],
                         'modified_time': os.path.getmtime(file_path)
                     }
-                    logger.info("Process File ID: %s, File Info: %s", file_id, file_info)
+                    logger.debug("Process File ID: %s, File Info: %s", file_id, file_info)
 
                     if file_id in file_dict:
                         file_dict[file_id].append(file_info)
