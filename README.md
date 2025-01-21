@@ -1,7 +1,7 @@
 # dup_finder
 
 ## 简介
-`dup_finder` 是一个用于查找并处理重复文件的 Python 工具。它可以通过计算文件的哈希值来识别重复文件，并根据指定的优先级规则保留某些文件，同时对其他文件执行删除或移动操作。
+`dup_finder` 是一个用于查找并处理重复文件的 Python 工具。它可以通过计算文件的哈希值来识别重复文件，并根据指定的保留优先级规则（修改时间、路径等）保留惟一文件，同时根据需求对其他重复文件执行删除或移动操作。
 
 ## 功能特性
 - **查找重复文件**：通过文件大小和哈希值（SHA-256）唯一标识文件，查找给定目录中的重复文件。对于哈希值相同但文件大小不同的文件，全部保留并打印出来，进行手动甄别。
@@ -9,6 +9,7 @@
 - **关键字过滤**：支持通过关键字筛选需要保留的文件。
 - **灵活处理**：可以选择删除或移动重复文件，支持自定义移动目标目录。
 - **命令行工具**：提供简单易用的命令行接口，方便集成到自动化脚本中。
+- **保存文件信息**：将 `file_dict` 的内容按当前日期时间保留下来，以备后查。
 
 ## 技术栈
 - 编程语言：Python 3.x
@@ -32,64 +33,74 @@
 
 | 参数 | 类型 | 描述 |
 | --- | --- | --- |
-| `directories` | 必选 | 需要查找重复文件的目录列表 |
-| `--keyword` | 可选 | 关键字，包含该关键字的文件将被优先保留 |
+| `-d, --directories` | 必选 | 查找重复文件的目录，可以输入多个目录，以空格分隔 |
+| `--exclude` | 可选 | 排除关键字，包含该关键字的文件将被排除在处理结果外 |
+| `--exclude-file` | 可选 | 同上，但将排除关键字写入一个文件中，每行一个关键字 |
 | `--action` | 可选，默认为 `move` | 对重复文件执行的操作，可选值为 `delete` 或 `move` |
 | `--priority-order` | 可选 | 自定义优先级顺序，可选内容为 `modified_time path`。modified_time优先是考虑最新修改过的文件可能是最有保留价值的文件， path是文件完整路径，层数多的文件可能做了更细的整理。实际结合自己文件的情况，做对应的修改。 |
 | `--move-to-dir` | 可选 | 移动文件的目标目录 |
 | `--try-run, -n` | 可选 | 尝试运行模式：仅打印操作，不实际执行 |
 
-   ```
-   $ python dup_finder.py mock -h 
-   usage: dup_finder.py [-h] [--keyword KEYWORD] [--action {delete,move}]
-                        [--priority-order PRIORITY_ORDER [PRIORITY_ORDER ...]]
-                        [--move-to-dir MOVE_TO_DIR] [--try-run]
-                        directories [directories ...]
+```
+$ python dup_finder.py mock -h
 
-   Find and process duplicate files.
+usage: dup_finder.py [-h] -d DIRECTORIES [DIRECTORIES ...] [--exclude EXCLUDE [EXCLUDE ...]] [--exclude-file EXCLUDE_FILE] [--action {delete,move}] [--priority-order PRIORITY_ORDER [PRIORITY_ORDER ...]] [--move-to-dir MOVE_TO_DIR] [--try-run]
 
-   positional arguments:
-   directories           Directories to search for duplicate files
+Find and process duplicate files.
 
-   optional arguments:
-   -h, --help            show this help message and exit
-   --keyword KEYWORD     Keyword to retain files
-   --action {delete,move}
-                           Action to process files (default: move)
-   --priority-order PRIORITY_ORDER [PRIORITY_ORDER ...]
-                           Custom priority order: modified_time, path
-   --move-to-dir MOVE_TO_DIR
-                           Directory to move files to (if not specified, rename
-                           files with .dup_finder suffix)
-   --try-run, -n         Try run mode: only print actions without executing
-                           them
-   ```
+options:
+  -h, --help            show this help message and exit
+  -d DIRECTORIES [DIRECTORIES ...], --directories DIRECTORIES [DIRECTORIES ...]
+                        Directories to search for duplicate files
+  --exclude EXCLUDE [EXCLUDE ...]
+                        Exclude keywords,
+  --exclude-file EXCLUDE_FILE
+                        File containing exclude keywords, one per line
+  --action {delete,move}
+                        Action to process files (default: move)
+  --priority-order PRIORITY_ORDER [PRIORITY_ORDER ...]
+                        Custom priority order: default is modified_time, path
+  --move-to-dir MOVE_TO_DIR
+                        Directory to move files to (if not specified, rename files with .dup_finder suffix)
+  --try-run, -n         Try run mode: only print actions without executing them
 
+
+```
 
 ### 示例
 1. 查找并移动重复文件到指定目录：
    ```bash
-   python dup_finder.py /path/to/dir1 /path/to/dir2 --action move --move-to-dir /path/to/move_dir
+   python dup_finder.py -d /path/to/dir1 /path/to/dir2 --action move --move-to-dir /path/to/move_dir
    ```
 
 2. 查找并删除重复文件，保留包含特定关键字的文件：
    ```bash
-   python dup_finder.py /path/to/dir1 --keyword important --action delete
+   python dup_finder.py -d /path/to/dir1 --keyword important --action delete
    ```
 
 3. 使用自定义优先级顺序查找并处理重复文件：
    ```bash
-   python dup_finder.py /path/to/dir1 --priority-order modified_time path --action move
+   python dup_finder.py -d /path/to/dir1 --priority-order modified_time path --action move
    ```
 
 4. 尝试运行模式，仅打印操作，不实际执行：
    ```bash
-   python dup_finder.py /path/to/dir1 --try-run
+   python dup_finder.py -d /path/to/dir1 --try-run
    ```
 
 5. 使用简写形式尝试运行模式：
    ```bash
-   python dup_finder.py /path/to/dir1 -n
+   python dup_finder.py -d /path/to/dir1 -n
+   ```
+
+6. 排除包含特定关键字的文件：
+   ```bash
+   python dup_finder.py -d /path/to/dir1 --exclude temp --exclude pdf
+   ```
+
+7. 使用排除文件排除特定关键字的文件：
+   ```bash
+   python dup_finder.py -d /path/to/dir1 --exclude-file exclude_keywords.txt
    ```
 
 ## 贡献
