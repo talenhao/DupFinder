@@ -3,9 +3,11 @@ import sys
 import json
 import shutil
 import hashlib
+import tempfile
 import argparse
 import subprocess
 import datetime
+from filelock import FileLock
 from logger import configure_logger
 
 
@@ -15,24 +17,44 @@ logger = configure_logger("DupFinder")
 def get_file_hash(file_path, hash_algo=hashlib.sha256):
     """Calculate the hash of a file."""
     hash_obj = hash_algo()
-    try:
-        with open(file_path, 'rb') as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hash_obj.update(chunk)
-    except FileNotFoundError as e:
-        logger.error(f"Error reading file {file_path}: {e}")
-        return None
+    with open(file_path, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_obj.update(chunk)
     return hash_obj.hexdigest()
 
-def generate_file_identifier(file_path, cache_file='file_cache.json'):
-    """Generate a unique identifier for a file using a unified cache file."""
+def generate_file_identifier(file_path):
+    """Generate a unique identifier for a file."""
+    file_hash = get_file_hash(file_path, hashlib.sha256)
+    return file_hash
+
+def write_cache_to_file(cache, cache_file):
+    """Write the cache to the cache file atomically."""
+    with tempfile.NamedTemporaryFile('w', delete=False) as temp_file:
+        json.dump(cache, temp_file)
+        temp_file_path = temp_file.name
+    shutil.move(temp_file_path, cache_file)
+
+def load_cache(cache_file):
+    """Load the cache from the cache file."""
     if not os.path.exists(cache_file):
-        with open(cache_file, 'w') as f:
-            json.dump({}, f)
+        return {}
+    try:
+        with open(cache_file, 'r') as f:
+            return json.load(f)
+    except json.decoder.JSONDecodeError:
+        os.remove(cache_file)
+        return {}
 
-    with open(cache_file, 'r') as f:
-        cache = json.load(f)
+def update_cache(cache, file_path, file_id):
+    """Update the cache with the file information."""
+    cache[file_path] = {
+        'file_id': file_id,
+        'modified_time': os.path.getmtime(file_path),
+        'size': os.path.getsize(file_path)
+    }
 
+def get_file_id(file_path, cache):
+    """Process a single file and return its file ID."""
     file_info = cache.get(file_path)
     if file_info:
         cached_modified_time = file_info.get('modified_time')
@@ -43,43 +65,53 @@ def generate_file_identifier(file_path, cache_file='file_cache.json'):
         if cached_modified_time == current_modified_time and cached_size == current_size:
             return file_info['file_id']
 
-    file_hash = get_file_hash(file_path, hashlib.sha256)
-    if file_hash:
-        cache[file_path] = {
-            'file_id': file_hash,
-            'modified_time': os.path.getmtime(file_path),
-            'size': os.path.getsize(file_path)
-        }
-        with open(cache_file, 'w') as f:
-            json.dump(cache, f)
-    return file_hash
-
-def find_duplicates(directories):
+    file_id = generate_file_identifier(file_path)
+    update_cache(cache, file_path, file_id)
+    return file_id
+def find_duplicates(directories, cache_file='file_cache.json', batch_size=10):
     """Find duplicate files in the given directories."""
-    file_dict = {}
+    lock_file = f"{cache_file}.lock"
+    lock = FileLock(lock_file)
 
-    for directory in directories:
-        for root, _, files in os.walk(directory):
-            for file in files:
-                file_path = os.path.join(root, file)
-                file_id = generate_file_identifier(file_path)
-                if not file_id:
-                    logger.error(f"Error generating file ID for {file_path}")
-                    continue
-                file_info = {
-                    'path': file_path,
-                    'size': os.path.getsize(file_path),  # File size in bytes
-                    'type': os.path.splitext(file_path)[1],
-                    'modified_time': os.path.getmtime(file_path)
-                }
-                logger.info("Process File ID: %s, File Info: %s", file_id, file_info)
+    with lock:
+        cache = load_cache(cache_file)
+        file_dict = {}
+        cache_updates = []
 
-                if file_id in file_dict:
-                    file_dict[file_id].append(file_info)
-                else:
-                    file_dict[file_id] = [file_info]
-    # Filter out file_ids with only one element
-    file_dict = {file_id: file_info_list for file_id, file_info_list in file_dict.items() if len(file_info_list) >= 2}
+        for directory in directories:
+            for root, _, files in os.walk(directory):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    file_id = get_file_id(file_path, cache)
+                    if not file_id:
+                        logger.error(f"Error generating file ID for {file_path}")
+                        continue
+                    file_info = {
+                        'path': file_path,
+                        'size': os.path.getsize(file_path),  # File size in bytes
+                        'type': os.path.splitext(file_path)[1],
+                        'modified_time': os.path.getmtime(file_path)
+                    }
+                    logger.info("Process File ID: %s, File Info: %s", file_id, file_info)
+
+                    if file_id in file_dict:
+                        file_dict[file_id].append(file_info)
+                    else:
+                        file_dict[file_id] = [file_info]
+                    # Track updated cache entries
+                    cache_updates.append(file_path)
+                    
+                    # Write cache to file if batch size is reached
+                    if len(cache_updates) >= batch_size:
+                        write_cache_to_file(cache, cache_file)
+                        cache_updates.clear()
+                    
+        # Final write for any remaining updates
+        if cache_updates:
+            write_cache_to_file(cache, cache_file)
+
+        # Filter out file_ids with only one element
+        file_dict = {file_id: file_info_list for file_id, file_info_list in file_dict.items() if len(file_info_list) >= 2}
 
     return file_dict
 
