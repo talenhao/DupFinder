@@ -15,9 +15,13 @@ logger = configure_logger("DupFinder")
 def get_file_hash(file_path, hash_algo=hashlib.sha256):
     """Calculate the hash of a file."""
     hash_obj = hash_algo()
-    with open(file_path, 'rb') as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_obj.update(chunk)
+    try:
+        with open(file_path, 'rb') as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_obj.update(chunk)
+    except FileNotFoundError as e:
+        logger.error(f"Error reading file {file_path}: {e}")
+        return None
     return hash_obj.hexdigest()
 
 def generate_file_identifier(file_path):
@@ -34,6 +38,9 @@ def find_duplicates(directories):
             for file in files:
                 file_path = os.path.join(root, file)
                 file_id = generate_file_identifier(file_path)
+                if not file_id:
+                    logger.error(f"Error generating file ID for {file_path}")
+                    continue
                 file_info = {
                     'path': file_path,
                     'size': os.path.getsize(file_path),  # File size in bytes
