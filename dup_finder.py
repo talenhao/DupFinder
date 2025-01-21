@@ -24,10 +24,35 @@ def get_file_hash(file_path, hash_algo=hashlib.sha256):
         return None
     return hash_obj.hexdigest()
 
-def generate_file_identifier(file_path):
-    """Generate a unique identifier for a file."""
+def generate_file_identifier(file_path, cache_file='file_cache.json'):
+    """Generate a unique identifier for a file using a unified cache file."""
+    if not os.path.exists(cache_file):
+        with open(cache_file, 'w') as f:
+            json.dump({}, f)
+
+    with open(cache_file, 'r') as f:
+        cache = json.load(f)
+
+    file_info = cache.get(file_path)
+    if file_info:
+        cached_modified_time = file_info.get('modified_time')
+        cached_size = file_info.get('size')
+        current_modified_time = os.path.getmtime(file_path)
+        current_size = os.path.getsize(file_path)
+
+        if cached_modified_time == current_modified_time and cached_size == current_size:
+            return file_info['file_id']
+
     file_hash = get_file_hash(file_path, hashlib.sha256)
-    return f"{file_hash}"
+    if file_hash:
+        cache[file_path] = {
+            'file_id': file_hash,
+            'modified_time': os.path.getmtime(file_path),
+            'size': os.path.getsize(file_path)
+        }
+        with open(cache_file, 'w') as f:
+            json.dump(cache, f)
+    return file_hash
 
 def find_duplicates(directories):
     """Find duplicate files in the given directories."""
@@ -179,43 +204,21 @@ def process_files(files, action, move_to_dir=None, try_run=False):
                         logger.error(f"Error renaming {file['path']} to {new_path}: {e}")
 
 def main(directories, exclude_keywords, exclude_file, action, priority_order=None, move_to_dir=None, try_run=False):
-    # 检查上次运行的结果文件是否存在且目录相同
-    cache_file = 'file_dict_cache.json'
-    if os.path.exists(cache_file):
-        with open(cache_file, 'r', encoding='utf-8') as f:
-            cached_data = json.load(f)
-        if cached_data['directories'] == directories:
-            user_input = input("上次运行的结果可用，是否使用上次的结果？(Y/N): ").strip().upper()
-            if user_input == 'Y':
-                file_dict = cached_data['file_dict']
-                logger.info("使用上次运行的结果")
-            else:
-                file_dict = find_duplicates(directories)
-                logger.info("重新计算 file_dict")
-        else:
-            file_dict = find_duplicates(directories)
-            logger.info("目录不同，重新计算 file_dict")
-    else:
-        file_dict = find_duplicates(directories)
-        logger.info("未找到缓存文件，重新计算 file_dict")
-
+    file_dict = find_duplicates(directories)
     assign_priorities(file_dict, exclude_keywords, exclude_file, priority_order)
-
-    # 将 file_dict 转换为 JSON 并保存到当前目录下的 'file_dict.json' 文件
-    current_time = datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S')
-    file_name = f'file_dict_{current_time}.json'
-    with open(file_name, 'w', encoding='utf-8') as json_file:
-        json.dump(file_dict, json_file, ensure_ascii=False, indent=4)
-
-    # 序列化 file_dict 和 directories 到缓存文件
-    with open(cache_file, 'w', encoding='utf-8') as f:
-        json.dump({'file_dict': file_dict, 'directories': directories}, f, ensure_ascii=False, indent=4)
+    # 保存 file_dict 到文件
+    current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = f"duplicates_{current_time}.json"
+    with open(output_file, 'w') as f:
+        json.dump(file_dict, f, indent=4)
+    logger.info(f"Saved file_dict to {output_file}")
 
     retain_files(file_dict, action, move_to_dir, try_run)
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Find and process duplicate files.")
-    parser.add_argument("directories", nargs='+', help="Directories to search for duplicate files")
+    parser.add_argument("-d", "--directories", nargs='+', required=True, help="Directories to search for duplicate files")
     parser.add_argument("--exclude", nargs='+', required=False, help="Exclude keywords, ")
     parser.add_argument("--exclude-file", required=False, help="File containing exclude keywords, one per line")
     parser.add_argument("--action", choices=['delete', 'move'], required=False, default='move', help="Action to process files (default: move)")
