@@ -68,7 +68,17 @@ def get_file_id(file_path, cache):
     file_id = generate_file_identifier(file_path)
     update_cache(cache, file_path, file_id)
     return file_id
-def find_duplicates(directories, cache_file='file_cache.json', batch_size=10):
+
+def parse_exclude_file(exclude_file):
+    """Parse the exclude file and return a list of keywords."""
+    try:
+        with open(exclude_file, 'r') as file:
+            return [line.strip() for line in file if line.strip()]
+    except Exception as e:
+        logger.error(f"Error reading exclude file {exclude_file}: {e}")
+        return []
+
+def find_duplicates(directories, cache_file='file_cache.json', batch_size=10, exclude_keywords=None):
     """Find duplicate files in the given directories."""
     lock_file = f"{cache_file}.lock"
     lock = FileLock(lock_file)
@@ -83,6 +93,10 @@ def find_duplicates(directories, cache_file='file_cache.json', batch_size=10):
             for root, _, files in os.walk(directory):
                 for file in files:
                     file_path = os.path.join(root, file)
+                    # 检查文件路径是否包含排除关键字
+                    if exclude_keywords and any(keyword in file_path for keyword in exclude_keywords):
+                        logger.debug(f"Excluding file: {file_path}")
+                        continue
                     file_id = get_file_id(file_path, cache)
                     if not file_id:
                         logger.error(f"Error generating file ID for {file_path}")
@@ -116,24 +130,11 @@ def find_duplicates(directories, cache_file='file_cache.json', batch_size=10):
 
     return file_dict
 
-def parse_exclude_file(exclude_file):
-    """Parse the exclude file and return a list of keywords."""
-    try:
-        with open(exclude_file, 'r') as file:
-            return [line.strip() for line in file if line.strip()]
-    except Exception as e:
-        logger.error(f"Error reading exclude file {exclude_file}: {e}")
-        return []
-
-def assign_priorities(file_dict, exclude_keywords, exclude_file, priority_order=None):
+def assign_priorities(file_dict, retain_keywords, priority_order=None):
     """Assign priorities to files based on the given criteria."""
     if priority_order is None:
         # Default priority order
         priority_order = ['modified_time', 'path']
-
-    # Read exclude keywords from file if provided
-    if exclude_file:
-        exclude_keywords.extend(parse_exclude_file(exclude_file))
 
     for file_id, files in file_dict.items():
         # 检查同一 file_id 下的文件大小是否一致
@@ -148,26 +149,26 @@ def assign_priorities(file_dict, exclude_keywords, exclude_file, priority_order=
                 logger.warning(f"  Path: {file_info['path']}, Size: {file_info['size']}")
             continue
 
-        priority_counter = 1  # Start from 1 for non-excluded files
-        if exclude_keywords:
-            excluded_files = [file for file in files if any(keyword in file['path'] for keyword in exclude_keywords)]
-            non_excluded_files = [file for file in files if all(keyword not in file['path'] for keyword in exclude_keywords)]
+        priority_counter = 1  # Start from 1 for non-retained files
+        if retain_keywords:
+            retained_files = [file for file in files if any(keyword in file['path'] for keyword in retain_keywords)]
+            non_retained_files = [file for file in files if all(keyword not in file['path'] for keyword in retain_keywords)]
 
-            # Assign priority 0 to files containing any of the exclude keywords
-            for file_info in excluded_files:
+            # Assign priority 0 to files containing any of the retain keywords
+            for file_info in retained_files:
                 file_info['priority'] = 0
 
-            # Sort non-excluded files by the custom priority order
-            non_excluded_files.sort(
+            # Sort non-retained files by the custom priority order
+            non_retained_files.sort(
                 key=lambda x: tuple(-x[order] if order != 'path' else -x[order].count(os.sep) for order in priority_order)
             )
 
-            # Assign priorities to non-excluded files
-            for file_info in non_excluded_files:
+            # Assign priorities to non-retained files
+            for file_info in non_retained_files:
                 file_info['priority'] = priority_counter
                 priority_counter += 1
         else:
-            # If no exclude keywords, sort all files by the custom priority order
+            # If no retain keywords, sort all files by the custom priority order
             files.sort(
                 key=lambda x: tuple(-x[order] if order != 'path' else -x[order].count(os.sep) for order in priority_order)
             )
@@ -236,9 +237,9 @@ def process_files(files, action, move_to_dir=None, try_run=False):
                     except Exception as e:
                         logger.error(f"Error renaming {file['path']} to {new_path}: {e}")
 
-def main(directories, exclude_keywords, exclude_file, action, priority_order=None, move_to_dir=None, try_run=False):
-    file_dict = find_duplicates(directories)
-    assign_priorities(file_dict, exclude_keywords, exclude_file, priority_order)
+def main(directories, action, priority_order=None, move_to_dir=None, try_run=False, exclude_keywords=None, retain_keywords=None):
+    file_dict = find_duplicates(directories, exclude_keywords=exclude_keywords)
+    assign_priorities(file_dict, retain_keywords, priority_order=priority_order)
     # 保存 file_dict 到文件
     current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     output_file = f"duplicates_{current_time}.json"
@@ -248,19 +249,32 @@ def main(directories, exclude_keywords, exclude_file, action, priority_order=Non
 
     retain_files(file_dict, action, move_to_dir, try_run)
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Find and process duplicate files.")
-    parser.add_argument("-d", "--directories", nargs='+', required=True, help="Directories to search for duplicate files")
-    parser.add_argument("--exclude", nargs='+', required=False, help="Exclude keywords, ")
-    parser.add_argument("--exclude-file", required=False, help="File containing exclude keywords, one per line")
+    parser.add_argument("--directories", "-d", nargs='+', required=True, help="Directories to search for duplicate files")
     parser.add_argument("--action", choices=['delete', 'move'], required=False, default='move', help="Action to process files (default: move)")
-    parser.add_argument("--priority-order", nargs='+', required=False, help="Custom priority order: default is modified_time, path")
-    parser.add_argument("--move-to-dir", required=False, help="Directory to move files to (if not specified, rename files with .dup_finder suffix)")
+    parser.add_argument("--priority-order", "-p", nargs='+', required=False, help="Custom priority order: default is modified_time, path")
+    parser.add_argument("--move-to-dir", "-m", required=False, help="Directory to move files to (if not specified, rename files with .dup_finder suffix)")
     parser.add_argument("--try-run", "-n", action='store_true', required=False, help="Try run mode: only print actions without executing them")
+    # 添加 exclude 和 exclude-file 参数
+    parser.add_argument("--exclude", nargs='+', required=False, help="Exclude files use keywords, ")
+    parser.add_argument("--exclude-file", required=False, help="File containing exclude keywords, one per line")
+    # 添加 retain 和 retain-file 参数
+    parser.add_argument("--retain", nargs='+', required=False, help="Retain keywords, ")
+    parser.add_argument("--retain-file", required=False, help="File containing retain keywords, one per line")
 
     args = parser.parse_args()
     # 使用 subprocess.list2cmdline 重建命令行字符串
     command_line = subprocess.list2cmdline(sys.argv)
     logger.info("Full command line: %s", command_line)
-    main(args.directories, args.exclude if args.exclude else [], args.exclude_file, args.action, args.priority_order, args.move_to_dir, args.try_run)
+    # 解析 exclude 和 exclude-file 参数
+    exclude_keywords = args.exclude if args.exclude else []
+    if args.exclude_file:
+        exclude_keywords_from_file = parse_exclude_file(args.exclude_file)
+        exclude_keywords.extend(exclude_keywords_from_file)
+    # 解析 retain 和 retain-file 参数
+    retain_keywords = args.retain if args.retain else []
+    if args.retain_file:
+        retain_keywords_from_file = parse_exclude_file(args.retain_file)  # 使用 parse_exclude_file 函数读取 retain-file
+        retain_keywords.extend(retain_keywords_from_file)
+    main(args.directories, args.action, args.priority_order, args.move_to_dir, args.try_run, exclude_keywords=exclude_keywords, retain_keywords=retain_keywords)
