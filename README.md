@@ -6,7 +6,8 @@
 ## 功能特性
 - **查找重复文件**：通过文件大小和哈希值（SHA-256）唯一标识文件，查找给定目录中的重复文件。对于哈希值相同但文件大小不同的文件，全部保留并打印出来，进行手动甄别。
 - **优先级排序**：根据文件路径、修改时间等条件为文件分配优先级，确保重要文件被保留。
-- **关键字过滤**：支持通过关键字筛选需要保留的文件。
+- **保留文件关键字过滤**：支持通过关键字筛选需要保留的文件。
+- **排除关键字过滤**：支持通过关键字筛选需要保留的文件。
 - **灵活处理**：可以选择删除或移动重复文件，支持自定义移动目标目录。
 - **命令行工具**：提供简单易用的命令行接口，方便集成到自动化脚本中。
 - **保存文件信息**：将 `file_dict` 的内容按当前日期时间保留下来，以备后查。
@@ -37,35 +38,51 @@
 | 参数 | 类型 | 描述 |
 | --- | --- | --- |
 | `-d, --directories` | 必选 | 查找重复文件的目录，可以输入多个目录，以空格分隔 |
-| `--exclude` | 可选 | 排除关键字，包含该关键字的文件将被排除在处理结果外 |
-| `--exclude-file` | 可选 | 同上，但将排除关键字写入一个文件中，每行一个关键字 |
 | `--action` | 可选，默认为 `move` | 对重复文件执行的操作，可选值为 `delete` 或 `move` |
 | `--priority-order` | 可选 | 自定义优先级顺序，可选内容为 `modified_time path`。modified_time优先是考虑最新修改过的文件可能是最有保留价值的文件， path是文件完整路径，层数多的文件可能做了更细的整理。实际结合自己文件的情况，做对应的修改。 |
 | `--move-to-dir` | 可选 | 移动文件的目标目录 |
 | `--try-run, -n` | 可选 | 尝试运行模式：仅打印操作，不实际执行 |
+| `--exclude` | 可选 | 排除关键字，包含该关键字的文件路径将被排除在处理结果外 |
+| `--exclude-file` | 可选 | 同上，但将排除关键字写入一个文件中，每行一个关键字 |
+| `--retain` | 可选 | 强制保留关键字，包含该关键字的文件路径将被提升到最高优先级，保留文件不处理 |
+| `--retain-file` | 可选 | 同上，但将强制保留关键字写入一个文件中，每行一个关键字 |
+
 
 ```
-$ python dup_finder.py mock -h
-
-usage: dup_finder.py [-h] -d DIRECTORIES [DIRECTORIES ...] [--exclude EXCLUDE [EXCLUDE ...]] [--exclude-file EXCLUDE_FILE] [--action {delete,move}] [--priority-order PRIORITY_ORDER [PRIORITY_ORDER ...]] [--move-to-dir MOVE_TO_DIR] [--try-run]
+$ python dup_finder.py -h
+usage: dup_finder.py [-h] --directories DIRECTORIES [DIRECTORIES ...]
+                     [--action {delete,move}]
+                     [--priority-order PRIORITY_ORDER [PRIORITY_ORDER ...]]
+                     [--move-to-dir MOVE_TO_DIR] [--try-run]
+                     [--exclude EXCLUDE [EXCLUDE ...]]
+                     [--exclude-file EXCLUDE_FILE]
+                     [--retain RETAIN [RETAIN ...]]
+                     [--retain-file RETAIN_FILE]
 
 Find and process duplicate files.
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
-  -d DIRECTORIES [DIRECTORIES ...], --directories DIRECTORIES [DIRECTORIES ...]
+  --directories DIRECTORIES [DIRECTORIES ...], -d DIRECTORIES [DIRECTORIES ...]
                         Directories to search for duplicate files
-  --exclude EXCLUDE [EXCLUDE ...]
-                        Exclude keywords,
-  --exclude-file EXCLUDE_FILE
-                        File containing exclude keywords, one per line
   --action {delete,move}
                         Action to process files (default: move)
-  --priority-order PRIORITY_ORDER [PRIORITY_ORDER ...]
+  --priority-order PRIORITY_ORDER [PRIORITY_ORDER ...], -p PRIORITY_ORDER [PRIORITY_ORDER ...]
                         Custom priority order: default is modified_time, path
-  --move-to-dir MOVE_TO_DIR
-                        Directory to move files to (if not specified, rename files with .dup_finder suffix)
-  --try-run, -n         Try run mode: only print actions without executing them
+  --move-to-dir MOVE_TO_DIR, -m MOVE_TO_DIR
+                        Directory to move files to (if not specified, rename
+                        files with .dup_finder suffix)
+  --try-run, -n         Try run mode: only print actions without executing
+                        them
+  --exclude EXCLUDE [EXCLUDE ...]
+                        Exclude files use keywords,
+  --exclude-file EXCLUDE_FILE
+                        File containing exclude keywords, one per line
+  --retain RETAIN [RETAIN ...]
+                        Retain keywords,
+  --retain-file RETAIN_FILE
+                        File containing retain keywords, one per line
+
 
 
 ```
@@ -78,7 +95,7 @@ options:
 
 2. 查找并删除重复文件，保留包含特定关键字的文件：
    ```bash
-   python dup_finder.py -d /path/to/dir1 --keyword important --action delete
+   python dup_finder.py -d /path/to/dir1 --retain important --action delete
    ```
 
 3. 使用自定义优先级顺序查找并处理重复文件：
@@ -96,7 +113,7 @@ options:
    python dup_finder.py -d /path/to/dir1 -n
    ```
 
-6. 排除包含特定关键字的文件：
+6. 排除包含特定关键字的文件，不进行文件重复判断：
    ```bash
    python dup_finder.py -d /path/to/dir1 --exclude temp --exclude pdf
    ```
