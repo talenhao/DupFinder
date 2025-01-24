@@ -150,33 +150,18 @@ def assign_priorities(file_dict, retain_keywords, priority_order=None):
             continue
 
         priority_counter = 1  # Start from 1 for non-retained files
-        if retain_keywords:
-            retained_files = [file for file in files if any(keyword in file['path'] for keyword in retain_keywords)]
-            non_retained_files = [file for file in files if all(keyword not in file['path'] for keyword in retain_keywords)]
-
-            # Assign priority 0 to files containing any of the retain keywords
-            for file_info in retained_files:
+        files.sort(
+            key=lambda x: tuple(-x[order] if order != 'path' else -x[order].count(os.sep) for order in priority_order)
+        )
+        # Assign priorities to all files
+        for file_info in files:
+            # 检查文件路径是否包含 retain_keywords
+            if retain_keywords and any(keyword in file_info['path'] for keyword in retain_keywords):
                 file_info['priority'] = 0
-
-            # Sort non-retained files by the custom priority order
-            non_retained_files.sort(
-                key=lambda x: tuple(-x[order] if order != 'path' else -x[order].count(os.sep) for order in priority_order)
-            )
-
-            # Assign priorities to non-retained files
-            for file_info in non_retained_files:
+            else:
                 file_info['priority'] = priority_counter
                 priority_counter += 1
-        else:
-            # If no retain keywords, sort all files by the custom priority order
-            files.sort(
-                key=lambda x: tuple(-x[order] if order != 'path' else -x[order].count(os.sep) for order in priority_order)
-            )
 
-            # Assign priorities to all files
-            for file_info in files:
-                file_info['priority'] = priority_counter
-                priority_counter += 1
 
 def retain_files(file_dict, action, move_to_dir=None, try_run=False):
     """Retain files based on the priority and process the rest."""
