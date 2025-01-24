@@ -165,62 +165,52 @@ def assign_priorities(file_dict, retain_keywords, priority_order=None):
 
 def retain_files(file_dict, action, move_to_dir=None, try_run=False):
     """Retain files based on the priority and process the rest."""
-    files_to_process = []
-    files_to_retain = []
-
     for file_id, files in file_dict.items():
-        # Retain files with priority 0
-        retained_files = [file for file in files if file['priority'] == 0]
-        non_zero_priority_files = [file for file in files if file['priority'] != 0]
+        # Sort files by priority (lowest priority number first)
+        files.sort(key=lambda x: x['priority'])
+        # Find the highest priority (lowest priority number)
+        highest_priority = files[0]['priority']
+        # Retain all files with the highest priority
+        retained_files = [file for file in files if file['priority'] == highest_priority]
+        # Process the rest of the files
+        non_retained_files = [file for file in files if file not in retained_files]
+        for non_retained_file in non_retained_files:
+            process_file(non_retained_file, action, move_to_dir, try_run)
 
-        # If there are non-zero priority files, retain the one with the highest priority (lowest priority number)
-        if non_zero_priority_files:
-            best_file = min(non_zero_priority_files, key=lambda x: x['priority'])
-            retained_files.append(best_file)
-            files_to_process.extend([file for file in non_zero_priority_files if file != best_file])
-        files_to_retain.extend(retained_files)
-    process_files(files_to_process, action, move_to_dir, try_run)
-
-def process_files(files, action, move_to_dir=None, try_run=False):
+def process_file(file, action, move_to_dir=None, try_run=False):
     if action == 'delete':
-        for file in files:
+        if try_run:
+            logger.warning(f"Would delete: {file['path']}")
+        else:
+            try:
+                os.remove(file['path'])
+                logger.warning(f"Deleted: {file['path']}")
+            except Exception as e:
+                logger.error(f"Error deleting {file['path']}: {e}")
+    elif action == 'move':
+        file_name = file['path'].replace('/', '___')
+        if move_to_dir:
+            new_path = os.path.join(move_to_dir, file_name)
             if try_run:
-                logger.warning(f"Would delete: {file['path']}")
+                logger.warning(f"Would move: {file['path']} to {new_path}")
             else:
                 try:
-                    os.remove(file['path'])
-                    logger.warning(f"Deleted: {file['path']}")
+                    if not os.path.exists(move_to_dir):
+                        os.makedirs(move_to_dir)
+                    shutil.move(file['path'], new_path)
+                    logger.warning(f"Moved: {file['path']} to {new_path}")
                 except Exception as e:
-                    logger.error(f"Error deleting {file['path']}: {e}")
-    elif action == 'move':
-        if move_to_dir:
-            if not os.path.exists(move_to_dir):
-                os.makedirs(move_to_dir)
-            for file in files:
-                if try_run:
-                    file_name = file['path'].replace('/', '___')
-                    new_path = os.path.join(move_to_dir, file_name)
-                    logger.warning(f"Would move: {file['path']} to {new_path}")
-                else:
-                    try:
-                        file_name = file['path'].replace('/', '___')
-                        new_path = os.path.join(move_to_dir, file_name)
-                        shutil.move(file['path'], new_path)
-                        logger.warning(f"Moved: {file['path']} to {new_path}")
-                    except Exception as e:
-                        logger.error(f"Error moving {file['path']} to {move_to_dir}: {e}")
+                    logger.error(f"Error moving {file['path']} to {move_to_dir}: {e}")
         else:
-            for file in files:
-                if try_run:
-                    new_path = file['path'] + '.dup_finder'
-                    logger.warning(f"Would rename: {file['path']} to {new_path}")
-                else:
-                    try:
-                        new_path = file['path'] + '.dup_finder'
-                        shutil.move(file['path'], new_path)
-                        logger.warning(f"Renamed: {file['path']} to {new_path}")
-                    except Exception as e:
-                        logger.error(f"Error renaming {file['path']} to {new_path}: {e}")
+            new_path = file['path'] + '.dup_finder'
+            if try_run:
+                logger.warning(f"Would rename: {file['path']} to {new_path}")
+            else:
+                try:
+                    shutil.move(file['path'], new_path)
+                    logger.warning(f"Renamed: {file['path']} to {new_path}")
+                except Exception as e:
+                    logger.error(f"Error renaming {file['path']} to {new_path}: {e}")
 
 def main(directories, action, priority_order=None, move_to_dir=None, try_run=False, exclude_keywords=None, retain_keywords=None):
     file_dict = find_duplicates(directories, exclude_keywords=exclude_keywords)
