@@ -88,6 +88,7 @@ def find_duplicates(directories, cache_file='file_cache.json', batch_size=10, ex
         file_dict = {}
         cache_updates = []
 
+        directories = list(set(directories))
         for directory in directories:
             logger.info("Processing directory: %s", directory)
             for root, _, files in os.walk(directory):
