@@ -55,6 +55,11 @@ def update_cache(cache, file_path, file_id):
 
 def get_file_id(file_path, cache):
     """Process a single file and return its file ID."""
+    # 检查文件路径是否指向一个普通文件
+    if not os.path.isfile(file_path):
+        logger.debug(f"Ignoring non-regular file: {file_path}")
+        return None
+
     file_info = cache.get(file_path)
     if file_info:
         cached_modified_time = file_info.get('modified_time')
@@ -94,6 +99,7 @@ def find_duplicates(directories, cache_file='file_cache.json', batch_size=10, ex
             for root, _, files in os.walk(directory):
                 for file in files:
                     file_path = os.path.join(root, file)
+                    logger.debug("Processing file: %s", file_path)
                     # 检查文件路径是否包含排除关键字
                     if exclude_keywords and any(keyword in file_path for keyword in exclude_keywords):
                         logger.debug(f"Excluding file: {file_path}")
