@@ -108,12 +108,16 @@ def find_duplicates(directories, cache_file='file_cache.json', batch_size=10, ex
                     if not file_id:
                         logger.error(f"Error generating file ID for {file_path}")
                         continue
-                    file_info = {
-                        'path': file_path,
-                        'size': os.path.getsize(file_path),  # File size in bytes
-                        'type': os.path.splitext(file_path)[1],
-                        'modified_time': os.path.getmtime(file_path)
-                    }
+                    try:
+                        file_info = {
+                            'path': file_path,
+                            'size': os.path.getsize(file_path),  # File size in bytes
+                            'type': os.path.splitext(file_path)[1],
+                            'modified_time': os.path.getmtime(file_path)
+                        }
+                    except OSError as e:
+                        logger.warning(f"Error accessing file: {file_path} - {e}")
+                        continue  # 忽略该文件继续循环
                     logger.debug("Process File ID: %s, File Info: %s", file_id, file_info)
 
                     if file_id in file_dict:
