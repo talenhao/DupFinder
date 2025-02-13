@@ -223,15 +223,22 @@ def process_file(file, action, move_to_dir=None, try_run=False):
                 except Exception as e:
                     logger.error(f"Error renaming {file['path']} to {new_path}: {e}")
 
-def main(directories, action, priority_order=None, move_to_dir=None, try_run=False, exclude_keywords=None, retain_keywords=None):
-    file_dict = find_duplicates(directories, exclude_keywords=exclude_keywords)
-    assign_priorities(file_dict, retain_keywords, priority_order=priority_order)
-    # 保存 file_dict 到文件
-    current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = f"duplicates_{current_time}.json"
-    with open(output_file, 'w') as f:
-        json.dump(file_dict, f, indent=4)
-    logger.info(f"Saved file_dict to {output_file}")
+def main(directories, action, priority_order=None, move_to_dir=None, try_run=False, exclude_keywords=None, retain_keywords=None, file_dict_path=None):
+    if file_dict_path:
+        # 从指定文件中加载 file_dict
+        with open(file_dict_path, 'r') as f:
+            file_dict = json.load(f)
+        logger.info(f"Loaded file_dict from {file_dict_path}")
+    else:
+        # 找到重复文件
+        file_dict = find_duplicates(directories, exclude_keywords=exclude_keywords)
+        assign_priorities(file_dict, retain_keywords, priority_order=priority_order)
+        # 保存 file_dict 到文件
+        current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_file = f"duplicates_{current_time}.json"
+        with open(output_file, 'w') as f:
+            json.dump(file_dict, f, indent=4)
+        logger.info(f"Saved file_dict to {output_file}")
 
     retain_files(file_dict, action, move_to_dir, try_run)
 
@@ -248,6 +255,8 @@ if __name__ == "__main__":
     # 添加 retain 和 retain-file 参数
     parser.add_argument("--retain", nargs='+', required=False, help="Retain keywords, ")
     parser.add_argument("--retain-file", required=False, help="File containing retain keywords, one per line")
+    # 添加 duplicates-result-file 参数
+    parser.add_argument("--duplicates-result-file", required=False, help="File containing the duplicates result JSON data")
 
     args = parser.parse_args()
     # 使用 subprocess.list2cmdline 重建命令行字符串
@@ -263,4 +272,4 @@ if __name__ == "__main__":
     if args.retain_file:
         retain_keywords_from_file = parse_exclude_file(args.retain_file)  # 使用 parse_exclude_file 函数读取 retain-file
         retain_keywords.extend(retain_keywords_from_file)
-    main(args.directories, args.action, args.priority_order, args.move_to_dir, args.try_run, exclude_keywords=exclude_keywords, retain_keywords=retain_keywords)
+    main(args.directories, args.action, args.priority_order, args.move_to_dir, args.try_run, exclude_keywords=exclude_keywords, retain_keywords=retain_keywords, file_dict_path=args.duplicates_result_file)
