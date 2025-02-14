@@ -83,8 +83,29 @@ optional arguments:
   --retain-file RETAIN_FILE
                         File containing retain keywords, one per line
 
+```
+## 调整优先级工具
+我们提供 `change_priority.py` 用于对生成的 duplicates.json 进行优先级微调：
 
+### 使用场景
+当自动设置的优先级不符合预期时，可通过路径特征批量调整优先级值（数值越小优先级越高）
 
+### 命令行参数
+```bash
+$ python change_priority.py -h
+usage: change_priority.py [-h] -i INPUT -o OUTPUT -p PATH -a ADJUST
+
+调整重复文件优先级
+
+options:
+  -h, --help            show this help message and exit
+  -i INPUT, --input INPUT
+                        输入JSON文件路径
+  -o OUTPUT, --output OUTPUT
+                        输出JSON文件路径
+  -p PATH, --path PATH  目标路径特征（子字符串匹配）
+  -a ADJUST, --adjust ADJUST
+                        调整值（正数提升优先级，负数降低）
 ```
 
 ### 示例
@@ -122,6 +143,12 @@ optional arguments:
    ```bash
    python dup_finder.py -d /path/to/dir1 --exclude-file exclude_keywords.txt
    ```
+8. 调整重复文件生成结果文件的优先级：
+   ```bash
+   # 提升包含 "seagate4000g" 路径的优先级（数值减少1）
+   python change_priority.py -i duplicates.json -o adjusted.json -p "seagate4000g" -a 1
+   ```
+
 
 ## 贡献
 欢迎贡献代码！请阅读 [贡献指南](CONTRIBUTING.md) 以了解如何参与开发。
