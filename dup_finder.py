@@ -201,13 +201,26 @@ def process_file(file, action, move_to_dir=None, try_run=False):
     elif action == 'move':
         file_name = file['path'].replace('/', '___')
         if move_to_dir:
+            if not os.path.exists(move_to_dir):
+                os.makedirs(move_to_dir)
             new_path = os.path.join(move_to_dir, file_name)
             if try_run:
                 logger.warning(f"Would move: {file['path']} to {new_path}")
             else:
+                # 新增空间检查逻辑（开始）
+                # 获取目标目录磁盘信息
+                total, used, free = shutil.disk_usage(move_to_dir)
+                file_size = os.path.getsize(file['path'])
+                free_percent = (free / total * 100) if total > 0 else 0
+                logger.debug(f"移动文件需要空间：{file_size} 字节，剩余空间: {free} 字节 ({free_percent:.1f}%)")
+
+                # 空间不足判断
+                if free < file_size or free_percent < 5:
+                    logger.error(f"空间不足阻止移动：{file['path']} -> {new_path}")
+                    logger.error(f"需要空间: {file_size} 字节 | 剩余空间: {free} 字节 ({free_percent:.1f}%)")
+                    return None
+                # 新增空间检查逻辑（结束）
                 try:
-                    if not os.path.exists(move_to_dir):
-                        os.makedirs(move_to_dir)
                     shutil.move(file['path'], new_path)
                     logger.warning(f"Moved: {file['path']} to {new_path}")
                 except Exception as e:
