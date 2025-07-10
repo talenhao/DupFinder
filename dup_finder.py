@@ -137,7 +137,7 @@ def find_duplicates(directories, cache_file='file_cache.json', batch_size=10, ex
             write_cache_to_file(cache, cache_file)
 
         # Filter out file_ids with only one element
-        file_dict = {file_id: file_info_list for file_id, file_info_list in file_dict.items() if len(file_info_list) >= 2}
+        file_dict = {file_id: file_info_list for file_id, file_info_list in file_dict.items() if len(file_info_list) > 1}
 
     return file_dict
 
@@ -181,14 +181,13 @@ def retain_files(file_dict, action, move_to_dir=None, try_run=False):
         files.sort(key=lambda x: x['priority'])
         # Find the highest priority (lowest priority number)
         highest_priority = files[0]['priority']
-        # Retain all files with the highest priority
-        retained_files = [file for file in files if file['priority'] == highest_priority]
-        # Process the rest of the files
-        non_retained_files = [file for file in files if file not in retained_files]
-        for non_retained_file in non_retained_files:
-            process_file(non_retained_file, action, move_to_dir, try_run)
+        
+        # Process files with priority higher than the highest retained priority
+        for file in files:
+            if file['priority'] > highest_priority:
+                process_file(file, action, move_to_dir, try_run, file_id)
 
-def process_file(file, action, move_to_dir=None, try_run=False):
+def process_file(file, action, move_to_dir=None, try_run=False, file_id=None):
     if action == 'delete':
         if try_run:
             logger.warning(f"Would delete: {file['path']}")
@@ -199,7 +198,13 @@ def process_file(file, action, move_to_dir=None, try_run=False):
             except Exception as e:
                 logger.error(f"Error deleting {file['path']}: {e}")
     elif action == 'move':
-        file_name = file['path'].replace('/', '___')
+        # 修改文件名生成逻辑，确保不超过255字符限制
+        base_name = file['path'].replace('/', '__')
+        max_name_length = 255 - len(file_id) - 1  # 保留file_id和连接符空间
+        if len(base_name) > max_name_length:
+            base_name = base_name[:max_name_length]
+        file_name = file_id + base_name  # 使用下划线连接file_id和路径
+        
         if move_to_dir:
             if not os.path.exists(move_to_dir):
                 os.makedirs(move_to_dir)
@@ -286,3 +291,6 @@ if __name__ == "__main__":
         retain_keywords_from_file = parse_exclude_file(args.retain_file)  # 使用 parse_exclude_file 函数读取 retain-file
         retain_keywords.extend(retain_keywords_from_file)
     main(args.directories, args.action, args.priority_order, args.move_to_dir, args.try_run, exclude_keywords=exclude_keywords, retain_keywords=retain_keywords, file_dict_path=args.duplicates_result_file)
+
+
+
