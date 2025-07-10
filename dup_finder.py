@@ -188,13 +188,18 @@ def retain_files(file_dict, action, move_to_dir=None, try_run=False):
                 process_file(file, action, move_to_dir, try_run, file_id)
 
 def process_file(file, action, move_to_dir=None, try_run=False, file_id=None):
+    # 操作类型校验
+    if action not in ['delete', 'move']:
+        logger.warning(f"Unsupported action: {action}. Skipping file: {file['path']}")
+        return
+
     if action == 'delete':
         if try_run:
-            logger.warning(f"Would delete: {file['path']}")
+            logger.info(f"[TRY RUN] Would delete: {file['path']}")
         else:
             try:
                 os.remove(file['path'])
-                logger.warning(f"Deleted: {file['path']}")
+                logger.info(f"Deleted: {file['path']}")
             except Exception as e:
                 logger.error(f"Error deleting {file['path']}: {e}")
     elif action == 'move':
@@ -210,7 +215,7 @@ def process_file(file, action, move_to_dir=None, try_run=False, file_id=None):
                 os.makedirs(move_to_dir)
             new_path = os.path.join(move_to_dir, file_name)
             if try_run:
-                logger.warning(f"Would move: {file['path']} to {new_path}")
+                logger.info(f"[TRY RUN] Would move: {file['path']} to {new_path}")
             else:
                 # 新增空间检查逻辑（开始）
                 # 获取目标目录磁盘信息
@@ -227,20 +232,19 @@ def process_file(file, action, move_to_dir=None, try_run=False, file_id=None):
                 # 新增空间检查逻辑（结束）
                 try:
                     shutil.move(file['path'], new_path)
-                    logger.warning(f"Moved: {file['path']} to {new_path}")
+                    logger.info(f"Moved: {file['path']} to {new_path}")
                 except Exception as e:
                     logger.error(f"Error moving {file['path']} to {move_to_dir}: {e}")
         else:
             new_path = file['path'] + '.dup_finder'
             if try_run:
-                logger.warning(f"Would rename: {file['path']} to {new_path}")
+                logger.info(f"[TRY RUN] Would rename: {file['path']} to {new_path}")
             else:
                 try:
                     shutil.move(file['path'], new_path)
-                    logger.warning(f"Renamed: {file['path']} to {new_path}")
+                    logger.info(f"Renamed: {file['path']} to {new_path}")
                 except Exception as e:
                     logger.error(f"Error renaming {file['path']} to {new_path}: {e}")
-
 def main(directories, action, priority_order=None, move_to_dir=None, try_run=False, exclude_keywords=None, retain_keywords=None, file_dict_path=None):
     if file_dict_path:
         # 从指定文件中加载 file_dict
@@ -291,6 +295,5 @@ if __name__ == "__main__":
         retain_keywords_from_file = parse_exclude_file(args.retain_file)  # 使用 parse_exclude_file 函数读取 retain-file
         retain_keywords.extend(retain_keywords_from_file)
     main(args.directories, args.action, args.priority_order, args.move_to_dir, args.try_run, exclude_keywords=exclude_keywords, retain_keywords=retain_keywords, file_dict_path=args.duplicates_result_file)
-
 
 
