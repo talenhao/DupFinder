@@ -187,6 +187,13 @@ def retain_files(file_dict, action, move_to_dir=None, try_run=False):
             if file['priority'] > highest_priority:
                 process_file(file, action, move_to_dir, try_run, file_id)
 
+
+# def check_filename_length(filename):
+#     """检查文件名字节长度是否超过限制（255字节）"""
+#     byte_length = len(filename.encode('utf-8'))
+#     return byte_length <= 255
+
+
 def process_file(file, action, move_to_dir=None, try_run=False, file_id=None):
     # 操作类型校验
     if action not in ['delete', 'move']:
@@ -203,22 +210,26 @@ def process_file(file, action, move_to_dir=None, try_run=False, file_id=None):
             except Exception as e:
                 logger.error(f"Error deleting {file['path']}: {e}")
     elif action == 'move':
-        # 修改文件名生成逻辑，确保不超过255字符限制
-        base_name = file['path'].replace('/', '__')
-        max_name_length = 255 - len(file_id) - 1  # 保留file_id和连接符空间
-        if len(base_name) > max_name_length:
-            base_name = base_name[:max_name_length]
-        file_name = file_id + base_name  # 使用下划线连接file_id和路径
-        
         if move_to_dir:
-            if not os.path.exists(move_to_dir):
-                os.makedirs(move_to_dir)
-            new_path = os.path.join(move_to_dir, file_name)
+            # 创建file_id目录
+            target_dir = os.path.join(move_to_dir, file_id)
+            # 获取源文件的相对路径（基于系统根目录）
+            source_dir = os.path.dirname(file['path'])
+            relative_dir = os.path.relpath(source_dir, start='/')  # 转换为相对路径以避免绝对路径问题
+            # 构建目标子目录
+            target_subdir = os.path.join(target_dir, relative_dir)
+            
+            if not os.path.exists(target_subdir):
+                os.makedirs(target_subdir)
+            
+            # 保持原始文件名
+            file_name = os.path.basename(file['path'])
+            new_path = os.path.join(target_subdir, file_name)
+            
             if try_run:
                 logger.info(f"[TRY RUN] Would move: {file['path']} to {new_path}")
             else:
                 # 新增空间检查逻辑（开始）
-                # 获取目标目录磁盘信息
                 total, used, free = shutil.disk_usage(move_to_dir)
                 file_size = os.path.getsize(file['path'])
                 free_percent = (free / total * 100) if total > 0 else 0
@@ -234,7 +245,7 @@ def process_file(file, action, move_to_dir=None, try_run=False, file_id=None):
                     shutil.move(file['path'], new_path)
                     logger.info(f"Moved: {file['path']} to {new_path}")
                 except Exception as e:
-                    logger.error(f"Error moving {file['path']} to {move_to_dir}: {e}")
+                    logger.error(f"Error moving {file['path']} to {new_path}: {e}")
         else:
             new_path = file['path'] + '.dup_finder'
             if try_run:
@@ -295,5 +306,9 @@ if __name__ == "__main__":
         retain_keywords_from_file = parse_exclude_file(args.retain_file)  # 使用 parse_exclude_file 函数读取 retain-file
         retain_keywords.extend(retain_keywords_from_file)
     main(args.directories, args.action, args.priority_order, args.move_to_dir, args.try_run, exclude_keywords=exclude_keywords, retain_keywords=retain_keywords, file_dict_path=args.duplicates_result_file)
+
+
+
+
 
 
