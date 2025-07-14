@@ -47,6 +47,10 @@
 | `--retain` | 可选 | 强制保留关键字，包含该关键字的文件路径将被提升到最高优先级0；适合保留具有相同特征的文件，如打破上面的priority-order，保留相同目录下的文件 |
 | `--retain-file` | 可选 | 同上，但将强制保留关键字写入一个文件中，每行一个关键字 |
 
+### 文件移动增强功能
+- **完整路径保存**：现在在目标目录下会创建以 `file_id` 命名的子目录，并保留原始文件的完整目录结构
+- **彻底解决文件名长度限制**：通过保持原始文件名和目录结构，完全规避了操作系统对文件名长度（255字节）的限制
+- **空间检查机制**：在执行移动操作前会自动检查目标目录的可用空间，避免因空间不足导致操作失败
 
 ```
 $ python dup_finder.py -h
@@ -82,7 +86,6 @@ optional arguments:
                         Retain keywords,
   --retain-file RETAIN_FILE
                         File containing retain keywords, one per line
-
 ```
 ## 调整优先级工具
 我们提供 `change_priority.py` 用于对生成的 duplicates.json 进行优先级微调：
