@@ -162,7 +162,12 @@ def assign_priorities(file_dict, retain_keywords, priority_order=None):
 
         priority_counter = 1  # Start from 1 for non-retained files
         files.sort(
-            key=lambda x: tuple(-x[order] if order != 'path' else -x[order].count(os.sep) for order in priority_order)
+            key=lambda x: tuple(
+                x[order] if order == 'modified_time'  # 修改时间字段升序排列
+                else (-x[order] if order != 'path'  # 其他数值字段降序排列
+                      else -x[order].count(os.sep))  # 路径字段按目录深度降序
+                for order in priority_order
+            )
         )
         # Assign priorities to all files
         for file_info in files:
@@ -306,6 +311,8 @@ if __name__ == "__main__":
         retain_keywords_from_file = parse_exclude_file(args.retain_file)  # 使用 parse_exclude_file 函数读取 retain-file
         retain_keywords.extend(retain_keywords_from_file)
     main(args.directories, args.action, args.priority_order, args.move_to_dir, args.try_run, exclude_keywords=exclude_keywords, retain_keywords=retain_keywords, file_dict_path=args.duplicates_result_file)
+
+
 
 
 
